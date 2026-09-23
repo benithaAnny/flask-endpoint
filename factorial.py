@@ -111,6 +111,9 @@ def analyze():
         })
 
     return jsonify({
+
+
+        \
         "algorithms": results,
         "step": step,
         "n_max": n_max
@@ -123,3 +126,4 @@ if __name__ == "__main__":
         host="localhost",
         port=8000
     )
+    #time_complexity_visualizer(linear_search, 0, 100, 10)
