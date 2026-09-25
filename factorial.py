@@ -1,10 +1,12 @@
 import time
-import numpy as np
 from flask import Flask, request, jsonify
 import base64
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from flask_sqlalchemy import SQLAlchemy
+print("THIS IS MY APP.PY")
+
 
 def time_complexity_visualizer(algorithm, n_min, n_max, n_step):
     times = []
@@ -34,7 +36,7 @@ def time_complexity_visualizer(algorithm, n_min, n_max, n_step):
 
     filename = f"{algorithm.__name__}.png"
     fig.savefig(filename)
-
+    plt.close(fig)
     return filename
 
 
@@ -81,8 +83,21 @@ algorithms = {
 
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///analysis.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
 
+class Analysis(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    algorithm = db.Column(db.String(100), nullable=False)
+    step = db.Column(db.Integer, nullable=False)
+    n_max = db.Column(db.Integer, nullable=False)
+    image_file = db.Column(db.String(200), nullable=False)
+    image_base64 = db.Column(db.Text, nullable=False)
 
+with app.app_context():
+    db.create_all()
+    
 @app.route("/analyze")
 def analyze():
     algo = request.args.get("algo", "")
@@ -92,6 +107,8 @@ def analyze():
 
     results = []
     for name in algo_names:
+        if name not in algorithms:  # fix 2: guard against a bad algo name
+            return jsonify({"error": f"Unknown algorithm: {name}"}), 400
         selected_algorithm = algorithms[name]
 
         filename = time_complexity_visualizer(
@@ -110,15 +127,33 @@ def analyze():
             "image_base64": image_base64
         })
 
+
     return jsonify({
-
-
-        \
         "algorithms": results,
         "step": step,
         "n_max": n_max
     })
 
+@app.route("/save_analysis", methods=["POST"])
+def save_analysis():
+    data = request.get_json()
+
+    for result in data["algorithms"]:
+        analysis = Analysis(
+            algorithm=result["algorithm"],
+            step=data["step"],
+            n_max=data["n_max"],
+            image_file=result["image_file"],
+            image_base64=result["image_base64"]
+        )
+
+        db.session.add(analysis)
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Analysis saved successfully"
+    })
 
 if __name__ == "__main__":
 
